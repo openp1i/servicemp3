@@ -8,6 +8,7 @@
 #include <lib/dvb/teletext.h>
 #include <lib/dvb/metaparser.h>
 #include <gst/gst.h>
+#include <gst/pbutils/pbutils.h>
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
 
@@ -151,7 +152,6 @@ public:
 	RESULT subServices(ePtr<iSubserviceList> &ptr) { ptr = 0; return -1; }
 	RESULT timeshift(ePtr<iTimeshiftService> &ptr) { ptr = 0; return -1; }
 	RESULT tap(ePtr<iTapService> &ptr) { ptr = nullptr; return -1; };
-//	RESULT cueSheet(ePtr<iCueSheet> &ptr) { ptr = 0; return -1; }
 
 		// iCueSheet
 	PyObject *getCutList();
@@ -263,8 +263,9 @@ public:
 		bool is_video;
 		bool is_streaming;
 		bool is_hls;
+		bool is_dash;
 		sourceStream()
-			:audiotype(atUnknown), containertype(ctNone), is_video(FALSE), is_streaming(FALSE), is_hls(FALSE)
+			:audiotype(atUnknown), containertype(ctNone), is_video(FALSE), is_streaming(FALSE), is_hls(FALSE), is_dash(FALSE)
 		{
 		}
 	};
@@ -333,9 +334,9 @@ private:
 	bool m_autoturnon;
 	/* cuesheet load check */
 	bool m_cuesheet_loaded;
-	/* servicemMP3 chapter TOC support CVR */
+	/* servicemMP3 chapter TOC support */
 	bool m_use_chapter_entries;
-	/* last used seek position gst-1 only */
+	/* last used seek position */
 	gint64 m_last_seek_pos;
 	bufferInfo m_bufferInfo;
 	errorInfo m_errorInfo;
@@ -364,7 +365,6 @@ private:
 	GstPad* gstCreateSubtitleSink(eServiceMP3* _this, subtype_t type);
 	void gstPoll(ePtr<GstMessageContainer> const &);
 	static void playbinNotifySource(GObject *object, GParamSpec *unused, gpointer user_data);
-/* TOC processing CVR */
 	void HandleTocEntry(GstMessage *msg);
 	static gint match_sinktype(const GValue *velement, const gchar *type);
 	static void handleElementAdded(GstBin *bin, GstElement *element, gpointer user_data);
@@ -406,10 +406,14 @@ private:
 	std::string m_useragent;
 	std::string m_extra_headers;
 	RESULT trickSeek(gdouble ratio);
-	ePtr<iTSMPEGDecoder> m_decoder; // for showSinglePic when radio
+	ePtr<iTSMPEGDecoder> m_decoder;
 	std::string m_external_subtitle_path;
 	std::string m_external_subtitle_language;
 	std::string m_external_subtitle_extension;
+	
+	/* GStreamer 1.28 specific features */
+	bool m_enable_adaptive_streaming;
+	guint64 m_connection_speed;
 };
 
 #endif
