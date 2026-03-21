@@ -11,6 +11,9 @@
 #include <gst/pbutils/pbutils.h>
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
+/* for ID3 tags and cover art */
+#define evUpdateTags          (evUser + 16)
+#define evUpdateIDv3Cover     (evUser + 17)
 
 class eStaticServiceMP3Info;
 
