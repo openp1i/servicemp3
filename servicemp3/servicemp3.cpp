@@ -576,7 +576,7 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 	m_sourceinfo.is_video = FALSE;
 	m_sourceinfo.audiotype = atUnknown;
 	m_sourceinfo.is_dash = false;
-	
+
 	if (strcasecmp(ext, ".mpeg") == 0 || strcasecmp(ext, ".mpe") == 0 || strcasecmp(ext, ".mpg") == 0 || strcasecmp(ext, ".vob") == 0 || strcasecmp(ext, ".bin") == 0)
 	{
 		m_sourceinfo.containertype = ctMPEGPS;
@@ -703,7 +703,7 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 	eDebug("[eServiceMP3] playbin uri=%s", uri);
 	if (suburi != NULL)
 		eDebug("[eServiceMP3] playbin suburi=%s", suburi);
-	
+
 	m_gst_playbin = gst_element_factory_make("playbin", "playbin");
 	if (m_gst_playbin)
 	{
@@ -717,7 +717,7 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 		if (m_sourceinfo.is_streaming)
 		{
 			g_signal_connect(G_OBJECT (m_gst_playbin), "notify::source", G_CALLBACK (playbinNotifySource), this);
-			
+
 			if (m_download_buffer_path != "")
 			{
 				/* use progressive download buffering */
@@ -726,23 +726,23 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 				/* limit file size */
 				g_object_set(m_gst_playbin, "ring-buffer-max-size", (guint64)(16LL * 1024LL * 1024LL), NULL);
 			}
-			
+
 			/*
 			 * regardless whether or not we configured a progressive download file, use a buffer as well
 			 * (progressive download might not work for all formats)
 			 */
 			flags |= GST_PLAY_FLAG_BUFFERING;
-			
+
 			/* Optimized buffer settings for GStreamer 1.28 */
 			g_object_set(G_OBJECT(m_gst_playbin), "buffer-duration", 10LL * GST_SECOND, NULL);
 			g_object_set(G_OBJECT(m_gst_playbin), "buffer-size", m_buffer_size, NULL);
-			
+
 			/* Configure for HLS or DASH streaming */
 			if (m_sourceinfo.is_hls || m_sourceinfo.is_dash)
 			{
 				g_object_set(G_OBJECT(m_gst_playbin), "connection-speed", (guint64)(m_connection_speed), NULL);
 				m_enable_adaptive_streaming = true;
-				
+
 				/* Additional buffer for adaptive streaming */
 				if (m_sourceinfo.is_hls)
 				{
@@ -750,10 +750,10 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 				}
 			}
 		}
-		
+
 		g_object_set (G_OBJECT (m_gst_playbin), "flags", flags, NULL);
 		g_object_set (G_OBJECT (m_gst_playbin), "uri", uri, NULL);
-		
+
 		/* Configure subtitle sink with GStreamer 1.28 optimizations */
 		GstElement *subsink = gst_element_factory_make("subsink", "subtitle_sink");
 		if (!subsink)
@@ -763,15 +763,15 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 			m_subs_to_pull_handler_id = g_signal_connect (subsink, "new-buffer", G_CALLBACK (gstCBsubtitleAvail), this);
 			g_object_set (G_OBJECT (subsink), "caps", 
 				gst_caps_from_string("text/plain; text/x-plain; text/x-raw; text/x-pango-markup; subpicture/x-dvd; subpicture/x-dvb; subpicture/x-pgs"), NULL);
-			
+
 			/* Improved subtitle synchronization for GStreamer 1.28 */
 			g_object_set (G_OBJECT (subsink), "async", TRUE, NULL);
 			g_object_set (G_OBJECT (subsink), "max-lateness", (gint64)(100 * GST_MSECOND), NULL);
-			
+
 			g_object_set (G_OBJECT (m_gst_playbin), "text-sink", subsink, NULL);
 			g_object_set (G_OBJECT (m_gst_playbin), "current-text", m_currentSubtitleStream, NULL);
 		}
-		
+
 		/* Set up bus handling */
 		GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE (m_gst_playbin));
 		gst_bus_set_sync_handler(bus, gstBusSyncHandler, this, NULL);
@@ -1855,7 +1855,7 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 	if (!GST_IS_OBJECT(source))
 		return;
 	sourceName = gst_object_get_name(source);
-	
+
 	switch (GST_MESSAGE_TYPE (msg))
 	{
 		case GST_MESSAGE_EOS:
@@ -1899,7 +1899,7 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 #endif
 						g_object_set (G_OBJECT (subsink), "async", TRUE, NULL);
 						g_object_set (G_OBJECT (subsink), "max-lateness", (gint64)(100 * GST_MSECOND), NULL);
-						
+
 						eDebug("[eServiceMP3] subsink properties set!");
 						gst_object_unref(subsink);
 					}
@@ -2342,7 +2342,7 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 				eLog(6, "[eServiceMP3] Buffering %u percent done", m_bufferInfo.bufferPercent);
 				gst_message_parse_buffering_stats(msg, &mode, &(m_bufferInfo.avgInRate), &(m_bufferInfo.avgOutRate), &(m_bufferInfo.bufferingLeft));
 				m_event((iPlayableService*)this, evBuffering);
-				
+
 				if (m_use_prefillbuffer && !m_is_live && !m_sourceinfo.is_hls && --m_ignore_buffering_messages <= 0)
 				{
 					if (m_bufferInfo.bufferPercent == 100)
@@ -2723,15 +2723,15 @@ void eServiceMP3::pullSubtitle(GstBuffer *buffer)
 		size_t len = map.size;
 		eLog(6, "[eServiceMP3] gst_buffer_get_size %zu map.size %zu", gst_buffer_get_size(buffer), len);
 		gint64 duration_ns = GST_BUFFER_DURATION(buffer);
-		
+
 		if (duration_ns == GST_CLOCK_TIME_NONE)
 		{
 			duration_ns = 5 * GST_SECOND;
 		}
-		
+
 		int subType = m_subtitleStreams[m_currentSubtitleStream].type;
 		eLog(6, "[eServiceMP3] pullSubtitle type=%d size=%zu", subType, len);
-		
+
 		if ( subType )
 		{
 			if ( subType == stDVB )
@@ -2792,7 +2792,7 @@ void eServiceMP3::pushDVBSubtitles()
 		}
 		else
 			return;
-		
+
 		decoder_ms = running_pts / 90;
 
 		pts_t diff = show_time - decoder_ms;
@@ -3192,7 +3192,7 @@ void eServiceMP3::loadCuesheet()
 		eDebug("[eServiceMP3] skip loading cuesheet multiple times");
 		return;
 	}
- 
+
 	m_cue_entries.clear();
 	if (m_use_chapter_entries)
 		return;
