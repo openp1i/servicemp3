@@ -707,6 +707,10 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 	m_gst_playbin = gst_element_factory_make("playbin", "playbin");
 	if (m_gst_playbin)
 	{
+		/* Enable ICY metadata for HTTP streaming */
+		if (m_sourceinfo.is_streaming)
+			g_object_set(G_OBJECT(m_gst_playbin), "iradio-mode", TRUE, NULL);
+
 		/*
 		 * avoid video conversion, let the dvbmediasink handle that using native video flag
 		 * volume control is done by hardware, do not use soft volume flag
@@ -2472,6 +2476,12 @@ void eServiceMP3::playbinNotifySource(GObject *object, GParamSpec *unused, gpoin
 				{
 					g_object_set(G_OBJECT(source), "timeout", HTTP_TIMEOUT, NULL);
 					g_object_set(G_OBJECT(source), "retries", 20, NULL);
+
+					/* Enable ICY metadata for souphttpsrc */
+					if (g_object_class_find_property(G_OBJECT_GET_CLASS(source), "iradio-mode"))
+					{
+						g_object_set(G_OBJECT(source), "iradio-mode", TRUE, NULL);
+					}
 					
 					/* GStreamer 1.28: Add keep-alive support */
 					if (g_object_class_find_property(G_OBJECT_GET_CLASS(source), "keep-alive"))
