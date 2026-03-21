@@ -413,7 +413,7 @@ private:
 	std::string m_external_subtitle_path;
 	std::string m_external_subtitle_language;
 	std::string m_external_subtitle_extension;
-	
+
 	/* GStreamer 1.28 specific features */
 	bool m_enable_adaptive_streaming;
 	guint64 m_connection_speed;
