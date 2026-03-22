@@ -704,19 +704,7 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 	if (suburi != NULL)
 		eDebug("[eServiceMP3] playbin suburi=%s", suburi);
 
-	bool useplaybin3 = eConfigManager::getConfigBoolValue("config.misc.usegstplaybin3", false);
-	/* Force playbin3 for HTTP streams (better ICY metadata support) */
-	if (m_sourceinfo.is_streaming)
-	{
-		useplaybin3 = true;
-		eDebug("[eServiceMP3] Forcing playbin3 for streaming (better radio support)");
-	}
-	
-	if (useplaybin3)
-		m_gst_playbin = gst_element_factory_make("playbin3", "playbin");
-	else
-		m_gst_playbin = gst_element_factory_make("playbin", "playbin");
-	
+	m_gst_playbin = gst_element_factory_make("playbin", "playbin");
 	if (m_gst_playbin)
 	{
 		/* Force iradio-mode for all HTTP streams (required for HDFRadio) */
