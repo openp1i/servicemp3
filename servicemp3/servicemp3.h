@@ -6,7 +6,9 @@
 #include <lib/dvb/pmt.h>
 #include <lib/dvb/subtitle.h>
 #include <lib/dvb/teletext.h>
+#include <lib/dvb/metaparser.h>
 #include <gst/gst.h>
+#include <gst/pbutils/pbutils.h>
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
 
