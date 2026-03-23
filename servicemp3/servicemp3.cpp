@@ -2131,14 +2131,12 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 						close(fd);
 						m_coverart = true;
 						m_event((iPlayableService*)this, evUser+13);
-						m_event((iPlayableService*)this, evUpdateIDv3Cover);
 						eDebug("[eServiceMP3] /tmp/.id3coverart %d bytes written ", ret);
 					}
 				}
 			}
 			gst_tag_list_free(tags);
 			m_event((iPlayableService*)this, evUser+15);
-			m_event((iPlayableService*)this, evUpdateTags);
 			break;
 		}
 		case GST_MESSAGE_TOC:
