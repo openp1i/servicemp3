@@ -3377,4 +3377,3 @@ __attribute__((constructor)) void libraryinit(int argc, char **argv)
 	gst_version(&major, &minor, &micro, &nano);
 	eDebug("[eServiceMP3] GStreamer version initialized: %u.%u.%u.%u", major, minor, micro, nano);
 }
-
