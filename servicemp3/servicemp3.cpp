@@ -2016,7 +2016,6 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 						m_decoder = new eTSMPEGDecoder(NULL, 0);
 						m_decoder->showSinglePic(radio_pic.c_str());
 					}
-
 				}	break;
 				case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 				{
@@ -2082,6 +2081,10 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 						videoSink = NULL;
 					}
 				}	break;
+				default:
+					// Handle other state transitions (NULL_TO_READY, READY_TO_NULL, etc.)
+					// Most of these don't need special handling for our purposes
+					break;
 			}
 			break;
 		}
@@ -2822,7 +2825,7 @@ void eServiceMP3::pullSubtitle(GstBuffer *buffer)
 		eLog(6, "[eServiceMP3] gst_buffer_get_size %zu map.size %zu", gst_buffer_get_size(buffer), len);
 		gint64 duration_ns = GST_BUFFER_DURATION(buffer);
 
-		if (duration_ns == GST_CLOCK_TIME_NONE)
+		if (duration_ns == (gint64)GST_CLOCK_TIME_NONE)
 		{
 			duration_ns = 5 * GST_SECOND;
 		}
@@ -3206,6 +3209,12 @@ void eServiceMP3::setCutList(PyObject *list)
 	}
 	m_cuesheet_changed = 1;
 	m_event((iPlayableService*)this, evCuesheetChanged);
+}
+
+void eServiceMP3::setCutList(SWIG_PYOBJECT(ePyObject) list)
+{
+	// Just call our existing implementation
+	setCutList((PyObject*)list);
 }
 
 void eServiceMP3::setCutListEnable(int enable)
