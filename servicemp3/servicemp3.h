@@ -155,7 +155,7 @@ public:
 
 		// iCueSheet
 	PyObject *getCutList();
-	void setCutList(SWIG_PYOBJECT(ePyObject));
+	void setCutList(PyObject *list);
 	void setCutListEnable(int enable);
 
 	RESULT rdsDecoder(ePtr<iRdsDecoder> &ptr) { ptr = 0; return -1; }
@@ -219,20 +219,18 @@ public:
 		std::string language_code; /* iso-639, if available. */
 		std::string codec; /* clear text codec description */
 		audioStream()
-			:pad(0), type(atUnknown)
+			:pad(nullptr), type(atUnknown)
 		{
 		}
 
-		bool operator == (const audioStream& rhs)
+		bool operator == (const audioStream& rhs) const
 		{
-			audioStream lhs = *this;
-			return (lhs.type == rhs.type) && (lhs.language_code == rhs.language_code) && (lhs.codec == rhs.codec);
+			return (type == rhs.type) && (language_code == rhs.language_code) && (codec == rhs.codec);
 		}
 
-		bool operator != (const audioStream& rhs)
+		bool operator != (const audioStream& rhs) const
 		{
-			audioStream lhs = *this;
-			return !(lhs == rhs);
+			return !(*this == rhs);
 		}
 	};
 	struct subtitleStream
@@ -241,19 +239,17 @@ public:
 		subtype_t type;
 		std::string language_code; /* iso-639, if available. */
 		subtitleStream()
-			:pad(0)
+			:pad(nullptr), type(stUnknown)
 		{
 		}
-		bool operator == (const subtitleStream& rhs)
+		bool operator == (const subtitleStream& rhs) const
 		{
-			subtitleStream lhs = *this;
-			return (lhs.type == rhs.type) && (lhs.language_code == rhs.language_code);
+			return (type == rhs.type) && (language_code == rhs.language_code);
 		}
 
-		bool operator != (const subtitleStream& rhs)
+		bool operator != (const subtitleStream& rhs) const
 		{
-			subtitleStream lhs = *this;
-			return !(lhs == rhs);
+			return !(*this == rhs);
 		}
 	};
 	struct sourceStream
@@ -265,7 +261,7 @@ public:
 		bool is_hls;
 		bool is_dash;
 		sourceStream()
-			:audiotype(atUnknown), containertype(ctNone), is_video(FALSE), is_streaming(FALSE), is_hls(FALSE), is_dash(FALSE)
+			:audiotype(atUnknown), containertype(ctNone), is_video(false), is_streaming(false), is_hls(false), is_dash(false)
 		{
 		}
 	};
@@ -341,7 +337,7 @@ private:
 	bufferInfo m_bufferInfo;
 	errorInfo m_errorInfo;
 	std::string m_download_buffer_path;
-	eServiceMP3(eServiceReference ref);
+	explicit eServiceMP3(eServiceReference ref);
 	sigc::signal<void(iPlayableService*,int)> m_event;
 	enum
 	{
