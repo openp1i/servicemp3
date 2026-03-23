@@ -156,7 +156,7 @@ public:
 		// iCueSheet
 	PyObject *getCutList();
 	void setCutList(PyObject *list);
-	virtual void setCutList(SWIG_PYOBJECT(ePyObject) list) override;  // Base class overload
+	virtual void setCutList(SWIG_PYOBJECT(ePyObject) list) override;
 	void setCutListEnable(int enable);
 
 	RESULT rdsDecoder(ePtr<iRdsDecoder> &ptr) { ptr = 0; return -1; }
