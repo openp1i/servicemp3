@@ -133,7 +133,7 @@ eServiceFactoryMP3::eServiceFactoryMP3()
 	}
 
 	m_service_info = new eStaticServiceMP3Info();
-
+	
 	/* Log GStreamer version for debugging */
 	guint major, minor, micro, nano;
 	gst_version(&major, &minor, &micro, &nano);
@@ -1110,18 +1110,27 @@ RESULT eServiceMP3::stop()
 		gst_element_state_get_name(state),
 		gst_element_state_get_name(pending),
 		gst_element_state_change_return_get_name(ret));
-	ret = gst_element_set_state(m_gst_playbin, GST_STATE_NULL);
-	if (ret != GST_STATE_CHANGE_SUCCESS)
-		eDebug("[eServiceMP3] stop GST_STATE_NULL failure");
+
+	if (m_gst_playbin)
+	{
+		ret = gst_element_set_state(m_gst_playbin, GST_STATE_NULL);
+		if (ret != GST_STATE_CHANGE_SUCCESS)
+			eDebug("[eServiceMP3] stop GST_STATE_NULL failure");
+	}
+
 	if (!m_sourceinfo.is_streaming && m_cuesheet_loaded)
 		saveCuesheet();
 	m_nownext_timer->stop();
+
 	/* make sure that media is stopped before proceeding further */
-	ret = gst_element_get_state(m_gst_playbin, &state, &pending, 5 * GST_SECOND);
-	eDebug("[eServiceMP3] **** TO NULL state:%s pending:%s ret:%s ****",
-		gst_element_state_get_name(state),
-		gst_element_state_get_name(pending),
-		gst_element_state_change_return_get_name(ret));
+	if (m_gst_playbin)
+	{
+		ret = gst_element_get_state(m_gst_playbin, &state, &pending, 5 * GST_SECOND);
+		eDebug("[eServiceMP3] **** TO NULL state:%s pending:%s ret:%s ****",
+			gst_element_state_get_name(state),
+			gst_element_state_get_name(pending),
+			gst_element_state_change_return_get_name(ret));
+	}
 
 	return 0;
 }
@@ -1268,13 +1277,14 @@ RESULT eServiceMP3::trickSeek(gdouble ratio)
 			goto seek_unpause;
 		}
 		factory = gst_element_get_factory(source);
-		g_object_unref(source);
 		if (!factory)
 		{
 			eDebugNoNewLineStart("[eServiceMP3] trickSeek - cannot get source factory");
+			g_object_unref(source);
 			goto seek_unpause;
 		}
 		name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+		g_object_unref(source);
 		if (!name)
 		{
 			eDebugNoNewLineStart("[eServiceMP3] trickSeek - cannot get source name");
@@ -1370,10 +1380,24 @@ RESULT eServiceMP3::getPlayPosition(pts_t &pts)
 	if (!m_gst_playbin || m_state != stRunning)
 		return -1;
 
-	if ((audioSink || videoSink) && !m_paused)
+	if (!m_paused)
 	{
-		g_signal_emit_by_name(videoSink ? videoSink : audioSink, "get-decoder-time", &pos);
-		if (!GST_CLOCK_TIME_IS_VALID(pos)) return -1;
+		GstElement *sink = videoSink ? videoSink : audioSink;
+		if (sink)
+		{
+			g_signal_emit_by_name(sink, "get-decoder-time", &pos);
+			if (!GST_CLOCK_TIME_IS_VALID(pos)) 
+				return -1;
+		}
+		else
+		{
+			GstFormat fmt = GST_FORMAT_TIME;
+			if (!gst_element_query_position(m_gst_playbin, fmt, &pos))
+			{
+				eDebug("[eServiceMP3] gst_element_query_position failed in getPlayPosition");
+				return -1;
+			}
+		}
 	}
 	else
 	{
@@ -1951,7 +1975,7 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 			break;
 		case GST_MESSAGE_STATE_CHANGED:
 		{
-			if(GST_MESSAGE_SRC(msg) != GST_OBJECT(m_gst_playbin))
+			if (!m_gst_playbin || GST_MESSAGE_SRC(msg) != GST_OBJECT(m_gst_playbin))
 				break;
 
 			GstState old_state, new_state;
@@ -2041,7 +2065,8 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 						bool showRadioBackground = eConfigManager::getConfigBoolValue("config.misc.showradiopic", true);
 						std::string radio_pic = eConfigManager::getConfigValue(showRadioBackground ? "config.misc.radiopic" : "config.misc.blackradiopic");
 						m_decoder = new eTSMPEGDecoder(NULL, 0);
-						m_decoder->showSinglePic(radio_pic.c_str());
+						if (m_decoder)
+							m_decoder->showSinglePic(radio_pic.c_str());
 					}
 				}	break;
 				case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
@@ -2151,7 +2176,7 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 			{
 				eWarning("[eServiceMP3] Gstreamer warning : %s (%i) from %s" , warn->message, warn->code, sourceName);
 				subsink = gst_bin_get_by_name(GST_BIN(m_gst_playbin), "subtitle_sink");
-				if(subsink)
+				if(subsink && m_gst_playbin)
 				{
 					if (!gst_element_seek (subsink, m_currentTrickRatio, GST_FORMAT_TIME, (GstSeekFlags)(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
 						GST_SEEK_TYPE_SET, m_last_seek_pos,
@@ -2238,7 +2263,7 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 		}
 		case GST_MESSAGE_ASYNC_DONE:
 		{
-			if(GST_MESSAGE_SRC(msg) != GST_OBJECT(m_gst_playbin))
+			if(!m_gst_playbin || GST_MESSAGE_SRC(msg) != GST_OBJECT(m_gst_playbin))
 				break;
 
 			gint i, n_video = 0, n_audio = 0, n_text = 0;
@@ -2493,63 +2518,73 @@ GstBusSyncReply eServiceMP3::gstBusSyncHandler(GstBus *bus, GstMessage *message,
 
 void eServiceMP3::HandleTocEntry(GstMessage *msg)
 {
-	if (!strncmp(GST_MESSAGE_SRC_NAME(msg), "dvbvideosink", 12))
+	if (!msg || !GST_MESSAGE_SRC(msg))
+		return;
+
+	const gchar *src_name = GST_MESSAGE_SRC_NAME(msg);
+	if (!src_name || strncmp(src_name, "dvbvideosink", 12) != 0)
 	{
-		GstToc *toc;
-		gboolean updated;
-		gst_message_parse_toc(msg, &toc, &updated);
-		for (GList* i = gst_toc_get_entries(toc); i; i = i->next)
+		eDebug("[eServiceMP3] TOC entry from source %s not used", src_name ? src_name : "unknown");
+		return;
+	}
+
+	GstToc *toc;
+	gboolean updated;
+	gst_message_parse_toc(msg, &toc, &updated);
+
+	if (!toc)
+	{
+		eDebug("[eServiceMP3] Failed to parse TOC, toc is NULL");
+		return;
+	}
+
+	for (GList* i = gst_toc_get_entries(toc); i; i = i->next)
+	{
+		GstTocEntry *entry = static_cast<GstTocEntry*>(i->data);
+		if (gst_toc_entry_get_entry_type (entry) == GST_TOC_ENTRY_TYPE_EDITION)
 		{
-			GstTocEntry *entry = static_cast<GstTocEntry*>(i->data);
-			if (gst_toc_entry_get_entry_type (entry) == GST_TOC_ENTRY_TYPE_EDITION)
+			eLog(5, "[eServiceMP3] toc_type %s", gst_toc_entry_type_get_nick(gst_toc_entry_get_entry_type (entry)));
+			gint y = 0;
+			for (GList* x = gst_toc_entry_get_sub_entries (entry); x; x = x->next)
 			{
-				eLog(5, "[eServiceMP3] toc_type %s", gst_toc_entry_type_get_nick(gst_toc_entry_get_entry_type (entry)));
-				gint y = 0;
-				for (GList* x = gst_toc_entry_get_sub_entries (entry); x; x = x->next)
+				GstTocEntry *sub_entry = static_cast<GstTocEntry*>(x->data);
+				if (gst_toc_entry_get_entry_type (sub_entry) == GST_TOC_ENTRY_TYPE_CHAPTER)
 				{
-					GstTocEntry *sub_entry = static_cast<GstTocEntry*>(x->data);
-					if (gst_toc_entry_get_entry_type (sub_entry) == GST_TOC_ENTRY_TYPE_CHAPTER)
+					if (y == 0)
 					{
-						if (y == 0)
-						{
-							m_use_chapter_entries = true;
-							if (m_cuesheet_loaded)
-								m_cue_entries.clear();
-							else
-								loadCuesheet();
-						}
-						else if (y >= 1)
-						{
-							gint64 start = 0;
-							gint64 pts = 0;
-							gint type = 0;
-							gst_toc_entry_get_start_stop_times(sub_entry, &start, NULL);
-							type = 2;
-							if(start > 0)
-								pts = start / 11111;
-							if (pts > 0)
-							{
-								m_cue_entries.insert(cueEntry(pts, type));
-								eLog(5, "[eServiceMP3] toc_subtype %s,Nr = %d, start= %#" G_GINT64_MODIFIER "x",
-										gst_toc_entry_type_get_nick(gst_toc_entry_get_entry_type (sub_entry)), y + 1, pts);
-							}
-						}
-						y++;
+						m_use_chapter_entries = true;
+						if (m_cuesheet_loaded)
+							m_cue_entries.clear();
+						else
+							loadCuesheet();
 					}
-				}
-				if (y > 0)
-				{
-					m_cuesheet_changed = 1;
-					m_event((iPlayableService*)this, evCuesheetChanged);
+					else if (y >= 1)
+					{
+						gint64 start = 0;
+						gint64 pts = 0;
+						gint type = 0;
+						gst_toc_entry_get_start_stop_times(sub_entry, &start, NULL);
+						type = 2;
+						if(start > 0)
+							pts = start / 11111;
+						if (pts > 0)
+						{
+							m_cue_entries.insert(cueEntry(pts, type));
+							eLog(5, "[eServiceMP3] toc_subtype %s,Nr = %d, start= %#" G_GINT64_MODIFIER "x",
+									gst_toc_entry_type_get_nick(gst_toc_entry_get_entry_type (sub_entry)), y + 1, pts);
+						}
+					}
+					y++;
 				}
 			}
+			if (y > 0)
+			{
+				m_cuesheet_changed = 1;
+				m_event((iPlayableService*)this, evCuesheetChanged);
+			}
 		}
-		eDebug("[eServiceMP3] TOC entry from source %s processed", GST_MESSAGE_SRC_NAME(msg));
 	}
-	else
-	{
-		eDebug("[eServiceMP3] TOC entry from source %s not used", GST_MESSAGE_SRC_NAME(msg));
-	}
+	eDebug("[eServiceMP3] TOC entry from source %s processed", src_name);
 }
 
 void eServiceMP3::playbinNotifySource(GObject *object, GParamSpec *unused, gpointer user_data)
@@ -2558,7 +2593,7 @@ void eServiceMP3::playbinNotifySource(GObject *object, GParamSpec *unused, gpoin
 	eServiceMP3 *_this = (eServiceMP3*)user_data;
 	if (!_this || !_this->m_gst_playbin)
 		return;
-		
+
 	g_object_get(object, "source", &source, NULL);
 	if (source)
 	{
@@ -3020,10 +3055,11 @@ RESULT eServiceMP3::enableSubtitles(iSubtitleUser *user, struct SubtitleTrack &t
 {
 	if (!m_gst_playbin)
 		return -1;
-		
+
 	int m_subtitleStreams_size = int(m_subtitleStreams.size());
 	if (track.pid > m_subtitleStreams_size || track.pid < 1)
 	{
+		eDebug("[eServiceMP3] enableSubtitles: invalid track.pid %d (max %d)", track.pid, m_subtitleStreams_size);
 		return -1;
 	}
 	eDebug("[eServiceMP3][enableSubtitles] entered: subtitle stream %i track.pid %i", m_currentSubtitleStream, track.pid - 1);
@@ -3419,7 +3455,7 @@ void eServiceMP3::saveCuesheet()
 __attribute__((constructor)) void libraryinit(int argc, char **argv)
 {
 	gst_init(&argc, &argv);
-
+	
 	guint major, minor, micro, nano;
 	gst_version(&major, &minor, &micro, &nano);
 	eDebug("[eServiceMP3] GStreamer version initialized: %u.%u.%u.%u", major, minor, micro, nano);
