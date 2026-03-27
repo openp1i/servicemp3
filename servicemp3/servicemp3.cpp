@@ -133,7 +133,7 @@ eServiceFactoryMP3::eServiceFactoryMP3()
 	}
 
 	m_service_info = new eStaticServiceMP3Info();
-	
+
 	/* Log GStreamer version for debugging */
 	guint major, minor, micro, nano;
 	gst_version(&major, &minor, &micro, &nano);
@@ -1928,7 +1928,7 @@ subtype_t getSubtitleType(GstPad* pad, gchar *g_codec=NULL)
 
 	if (caps)
 		gst_caps_unref(caps);
-		
+
 	return type;
 }
 
