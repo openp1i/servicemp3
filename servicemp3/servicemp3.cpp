@@ -133,7 +133,7 @@ eServiceFactoryMP3::eServiceFactoryMP3()
 	}
 
 	m_service_info = new eStaticServiceMP3Info();
-	
+
 	/* Log GStreamer version for debugging */
 	guint major, minor, micro, nano;
 	gst_version(&major, &minor, &micro, &nano);
@@ -3455,7 +3455,7 @@ void eServiceMP3::saveCuesheet()
 __attribute__((constructor)) void libraryinit(int argc, char **argv)
 {
 	gst_init(&argc, &argv);
-	
+
 	guint major, minor, micro, nano;
 	gst_version(&major, &minor, &micro, &nano);
 	eDebug("[eServiceMP3] GStreamer version initialized: %u.%u.%u.%u", major, minor, micro, nano);
