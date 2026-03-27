@@ -2928,7 +2928,17 @@ void eServiceMP3::pushDVBSubtitles()
 		if (diff < 20 || decoder_ms == 0)
 		{
 			eTrace("[eServiceMP3] Showing subtitles at %lld. Current decoder time: %lld. Difference: %lld", show_time, decoder_ms, diff);
-			m_subtitle_widget->setPage(dvb_page);
+			
+			// FIX: Add null check to prevent crash when m_subtitle_widget is NULL
+			if (m_subtitle_widget)
+			{
+				m_subtitle_widget->setPage(dvb_page);
+			}
+			else
+			{
+				eDebug("[eServiceMP3] pushDVBSubtitles: m_subtitle_widget is NULL, skipping page");
+			}
+			
 			m_dvb_subtitle_pages.pop_front();
 		}
 		else
@@ -3409,7 +3419,7 @@ void eServiceMP3::saveCuesheet()
 __attribute__((constructor)) void libraryinit(int argc, char **argv)
 {
 	gst_init(&argc, &argv);
-	
+
 	guint major, minor, micro, nano;
 	gst_version(&major, &minor, &micro, &nano);
 	eDebug("[eServiceMP3] GStreamer version initialized: %u.%u.%u.%u", major, minor, micro, nano);
