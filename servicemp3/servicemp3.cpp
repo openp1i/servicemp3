@@ -1,4 +1,3 @@
-/* note: this requires gstreamer 1.28.x and a big list of plugins. */
 #include <lib/base/ebase.h>
 #include <lib/base/eerror.h>
 #include <lib/base/init_num.h>
@@ -729,11 +728,18 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 		/* Force iradio-mode for all HTTP streams (required for HDFRadio) */
 		if (m_sourceinfo.is_streaming)
 		{
-			/* Enable iradio-mode ONLY for audio streams */
+			/* Enable iradio-mode ONLY for audio streams - check if property exists */
 			if (!m_sourceinfo.is_video)
 			{
-				g_object_set(G_OBJECT(m_gst_playbin), "iradio-mode", TRUE, NULL);
-				eDebug("[eServiceMP3] Enabled iradio-mode (audio only)");
+				if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "iradio-mode"))
+				{
+					g_object_set(G_OBJECT(m_gst_playbin), "iradio-mode", TRUE, NULL);
+					eDebug("[eServiceMP3] Enabled iradio-mode (audio only)");
+				}
+				else
+				{
+					eDebug("[eServiceMP3] iradio-mode property not supported by this GStreamer version");
+				}
 			}
 		}
 
@@ -792,12 +798,20 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 					"buffer-size", 40 * 1024 * 1024,
 					NULL);
 
-				/* REQUIRED for stable HLS playback */
+				/* REQUIRED for stable HLS playback - check if property exists */
 				if (m_sourceinfo.is_hls)
 				{
-					g_object_set(G_OBJECT(m_gst_playbin),
-						"buffer-mode", 1,
-						NULL);
+					if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "buffer-mode"))
+					{
+						g_object_set(G_OBJECT(m_gst_playbin),
+							"buffer-mode", 1,
+							NULL);
+						eDebug("[eServiceMP3] Enabled buffer-mode for HLS");
+					}
+					else
+					{
+						eDebug("[eServiceMP3] buffer-mode property not supported, using default buffering");
+					}
 				}
 			}
 		}
@@ -867,6 +881,11 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 		if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "subtitle-offset"))
 		{
 			g_object_set(G_OBJECT(m_gst_playbin), "subtitle-offset", 0, NULL);
+			eDebug("[eServiceMP3] subtitle-offset property supported");
+		}
+		else
+		{
+			eDebug("[eServiceMP3] subtitle-offset property not supported");
 		}
 	} 
 	else
@@ -1962,7 +1981,15 @@ void eServiceMP3::gstBusCall(GstMessage *msg)
 						 * Improved subtitle synchronization for GStreamer 1.28
 						 * Move ahead the PTS of the subtitle sink by 2 seconds
 						 */
-						g_object_set (G_OBJECT (subsink), "ts-offset", -2LL * GST_SECOND, NULL);
+						if (g_object_class_find_property(G_OBJECT_GET_CLASS(subsink), "ts-offset"))
+						{
+							g_object_set (G_OBJECT (subsink), "ts-offset", -2LL * GST_SECOND, NULL);
+							eDebug("[eServiceMP3] subsink ts-offset set");
+						}
+						else
+						{
+							eDebug("[eServiceMP3] subsink ts-offset not supported");
+						}
 #if GSTREAMER_SUBTITLE_SYNC_MODE_BUG_WORKAROUND
 						g_object_set (G_OBJECT (subsink), "sync", FALSE, NULL);
 #endif
@@ -2546,17 +2573,18 @@ void eServiceMP3::playbinNotifySource(GObject *object, GParamSpec *unused, gpoin
 					g_object_set(G_OBJECT(source), "timeout", HTTP_TIMEOUT, NULL);
 					g_object_set(G_OBJECT(source), "retries", 20, NULL);
 
-					/* Enable iradio-mode for ICY metadata (required for HDFRadio) */
+					/* Enable iradio-mode for ICY metadata (required for HDFRadio) - check if property exists */
 					if (g_object_class_find_property(G_OBJECT_GET_CLASS(source), "iradio-mode"))
 					{
 						g_object_set(G_OBJECT(source), "iradio-mode", TRUE, NULL);
 						eDebug("[eServiceMP3] Enabled iradio-mode for souphttpsrc");
 					}
 
-					/* GStreamer 1.28: Add keep-alive support */
+					/* GStreamer 1.28: Add keep-alive support - check if property exists */
 					if (g_object_class_find_property(G_OBJECT_GET_CLASS(source), "keep-alive"))
 					{
 						g_object_set(G_OBJECT(source), "keep-alive", TRUE, NULL);
+						eDebug("[eServiceMP3] Enabled keep-alive for souphttpsrc");
 					}
 				}
 			}
