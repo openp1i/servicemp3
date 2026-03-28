@@ -11,7 +11,6 @@
 #include <gst/pbutils/pbutils.h>
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
-#include <mutex>
 
 class eStaticServiceMP3Info;
 
@@ -382,16 +381,13 @@ private:
 	typedef std::map<uint32_t, subtitle_page_t> subtitle_pages_map_t;
 	typedef std::pair<uint32_t, subtitle_page_t> subtitle_pages_map_pair_t;
 	subtitle_pages_map_t m_subtitle_pages;
+
 	ePtr<eTimer> m_subtitle_sync_timer;
 	ePtr<eTimer> m_dvb_subtitle_sync_timer;
-	ePtr<eDVBSubtitleParser> m_dvb_subtitle_parser;
-	ePtr<eConnection> m_new_dvb_subtitle_page_connection;
-	void newDVBSubtitlePage(const eDVBSubtitlePage &p);
 
 	pts_t m_prev_decoder_time;
 	int m_decoder_time_valid_state;
 
-	void pushDVBSubtitles();
 	void pushSubtitles();
 	void pullSubtitle(GstBuffer *buffer);
 	void sourceTimeout();
@@ -412,9 +408,6 @@ private:
 	/* GStreamer 1.28 specific features */
 	bool m_enable_adaptive_streaming;
 	guint64 m_connection_speed;
-
-	/* Mutex for thread safety */
-	std::mutex m_subtitle_mutex;
 };
 
 #endif
