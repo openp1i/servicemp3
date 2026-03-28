@@ -11,6 +11,7 @@
 #include <gst/pbutils/pbutils.h>
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
+#include <mutex>
 
 class eStaticServiceMP3Info;
 
@@ -411,6 +412,9 @@ private:
 	/* GStreamer 1.28 specific features */
 	bool m_enable_adaptive_streaming;
 	guint64 m_connection_speed;
+
+	/* Mutex for thread safety */
+	std::mutex m_subtitle_mutex;
 };
 
 #endif
