@@ -2988,7 +2988,7 @@ void eServiceMP3::pullSubtitle(GstBuffer *buffer)
 			eLog(3, "[eServiceMP3] pullSubtitle gst_buffer_map failed");
 		}
 	}
-	
+
 	gst_buffer_unref(buffer);
 }
 
