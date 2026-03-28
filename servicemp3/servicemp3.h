@@ -312,11 +312,6 @@ protected:
 	void loadCuesheet();
 	void saveCuesheet();
 
-	/* Thread safety */
-	std::atomic<bool> m_is_destructing;
-	std::mutex m_subtitle_mutex;
-	std::mutex m_dvb_subtitle_mutex;
-
 private:
 	static int pcm_delay;
 	static int ac3_delay;
@@ -360,6 +355,15 @@ private:
 	std::list<eDVBSubtitlePage> m_dvb_subtitle_pages;
 
 	eFixedMessagePump<ePtr<GstMessageContainer> > m_pump;
+
+	/* Thread safety */
+	std::atomic<bool> m_is_destructing;
+	std::mutex m_subtitle_mutex;
+	std::mutex m_dvb_subtitle_mutex;
+
+	/* GStreamer 1.28 specific features */
+	bool m_enable_adaptive_streaming;
+	guint64 m_connection_speed;
 
 	audiotype_t gstCheckAudioPad(GstStructure* structure);
 	void gstBusCall(GstMessage *msg);
@@ -416,10 +420,6 @@ private:
 	std::string m_external_subtitle_path;
 	std::string m_external_subtitle_language;
 	std::string m_external_subtitle_extension;
-
-	/* GStreamer 1.28 specific features */
-	bool m_enable_adaptive_streaming;
-	guint64 m_connection_speed;
 };
 
 #endif
