@@ -9,6 +9,9 @@
 #include <lib/dvb/metaparser.h>
 #include <gst/gst.h>
 #include <gst/pbutils/pbutils.h>
+#include <atomic>
+#include <mutex>
+
 /* for subtitles */
 #include <lib/gui/esubtitle.h>
 
@@ -109,10 +112,10 @@ public:
 		if (messagePad) gst_object_unref(messagePad);
 		if (messageBuffer) gst_buffer_unref(messageBuffer);
 	}
-	int getType() { return messageType; }
-	operator GstMessage *() { return messagePointer; }
-	operator GstPad *() { return messagePad; }
-	operator GstBuffer *() { return messageBuffer; }
+	int getType() const { return messageType; }
+	GstMessage* getMessage() const { return messagePointer; }
+	GstPad* getPad() const { return messagePad; }
+	GstBuffer* getBuffer() const { return messageBuffer; }
 };
 
 typedef struct _GstElement GstElement;
@@ -217,8 +220,8 @@ public:
 	{
 		GstPad* pad;
 		audiotype_t type;
-		std::string language_code; /* iso-639, if available. */
-		std::string codec; /* clear text codec description */
+		std::string language_code;
+		std::string codec;
 		audioStream()
 			:pad(nullptr), type(atUnknown)
 		{
@@ -238,7 +241,7 @@ public:
 	{
 		GstPad* pad;
 		subtype_t type;
-		std::string language_code; /* iso-639, if available. */
+		std::string language_code;
 		subtitleStream()
 			:pad(nullptr), type(stUnknown)
 		{
@@ -308,6 +311,12 @@ protected:
 	int m_cuesheet_changed, m_cutlist_enabled;
 	void loadCuesheet();
 	void saveCuesheet();
+
+	/* Thread safety */
+	std::atomic<bool> m_is_destructing;
+	std::mutex m_subtitle_mutex;
+	std::mutex m_dvb_subtitle_mutex;
+
 private:
 	static int pcm_delay;
 	static int ac3_delay;
@@ -345,7 +354,7 @@ private:
 		stIdle, stRunning, stStopped,
 	};
 	int m_state;
-	GstElement *m_gst_playbin, *audioSink, *videoSink;
+	GstElement *m_gst_playbin, *audioSink, *videoSink, *m_subtitle_sink;
 	GstTagList *m_stream_tags;
 	bool m_coverart;
 	std::list<eDVBSubtitlePage> m_dvb_subtitle_pages;
@@ -381,13 +390,16 @@ private:
 	typedef std::map<uint32_t, subtitle_page_t> subtitle_pages_map_t;
 	typedef std::pair<uint32_t, subtitle_page_t> subtitle_pages_map_pair_t;
 	subtitle_pages_map_t m_subtitle_pages;
-
 	ePtr<eTimer> m_subtitle_sync_timer;
 	ePtr<eTimer> m_dvb_subtitle_sync_timer;
+	ePtr<eDVBSubtitleParser> m_dvb_subtitle_parser;
+	ePtr<eConnection> m_new_dvb_subtitle_page_connection;
+	void newDVBSubtitlePage(const eDVBSubtitlePage &p);
 
 	pts_t m_prev_decoder_time;
 	int m_decoder_time_valid_state;
 
+	void pushDVBSubtitles();
 	void pushSubtitles();
 	void pullSubtitle(GstBuffer *buffer);
 	void sourceTimeout();
