@@ -673,244 +673,235 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 
 	gchar *uri = NULL;
 
-	try {
-		if ( m_sourceinfo.is_streaming )
+	if ( m_sourceinfo.is_streaming )
+	{
+		if (eConfigManager::getConfigBoolValue("config.mediaplayer.useAlternateUserAgent"))
+			m_useragent = eConfigManager::getConfigValue("config.mediaplayer.alternateUserAgent");
+
+		uri = g_strdup_printf ("%s", filename);
+
+		if ( m_ref.getData(7) & BUFFERING_ENABLED )
 		{
-			if (eConfigManager::getConfigBoolValue("config.mediaplayer.useAlternateUserAgent"))
-				m_useragent = eConfigManager::getConfigValue("config.mediaplayer.alternateUserAgent");
-
-			uri = g_strdup_printf ("%s", filename);
-
-			if ( m_ref.getData(7) & BUFFERING_ENABLED )
+			m_use_prefillbuffer = true;
+			if ( m_ref.getData(7) & PROGRESSIVE_DOWNLOAD )
 			{
-				m_use_prefillbuffer = true;
-				if ( m_ref.getData(7) & PROGRESSIVE_DOWNLOAD )
+				/* progressive download buffering */
+				if (::access("/hdd/movie", X_OK) >= 0)
 				{
-					/* progressive download buffering */
-					if (::access("/hdd/movie", X_OK) >= 0)
+					/* It looks like /hdd points to a valid mount, so we can store a download buffer on it */
+					/* Prefer RAM buffer if available */
+					if (::access("/tmp", W_OK) >= 0)
 					{
-						/* It looks like /hdd points to a valid mount, so we can store a download buffer on it */
-						/* Prefer RAM buffer if available */
-						if (::access("/tmp", W_OK) >= 0)
-						{
-							m_download_buffer_path = "/tmp/gstreamer_XXXXXXXXXX";
-						}
-						else
-						{
-							m_download_buffer_path = "/hdd/gstreamer_XXXXXXXXXX";
-						}
-					}
-				}
-			}
-		}
-		else if ( m_sourceinfo.containertype == ctCDA )
-		{
-			int i_track = atoi(filename+(strlen(filename) - 6));
-			uri = g_strdup_printf ("cdda://%i", i_track);
-		}
-		else if ( m_sourceinfo.containertype == ctVCD )
-		{
-			int ret = -1;
-			int fd = open(filename,O_RDONLY);
-			if (fd >= 0)
-			{
-				char* tmp = new char[128*1024];
-				ret = read(fd, tmp, 128*1024);
-				close(fd);
-				delete [] tmp;
-			}
-			if ( ret == -1 ) // this is a "REAL" VCD
-				uri = g_strdup_printf ("vcd://");
-			else
-				uri = g_filename_to_uri(filename, NULL, NULL);
-		}
-		else
-			uri = g_filename_to_uri(filename, NULL, NULL);
-
-		eDebug("[eServiceMP3] playbin uri=%s", uri ? uri : "NULL");
-		if (suburi != NULL)
-			eDebug("[eServiceMP3] playbin suburi=%s", suburi);
-
-		m_gst_playbin = gst_element_factory_make("playbin", "playbin");
-		if (m_gst_playbin)
-		{
-			/* Force iradio-mode for all HTTP streams (required for HDFRadio) */
-			if (m_sourceinfo.is_streaming)
-			{
-				/* Enable iradio-mode ONLY for audio streams - check if property exists */
-				if (!m_sourceinfo.is_video)
-				{
-					if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "iradio-mode"))
-					{
-						g_object_set(G_OBJECT(m_gst_playbin), "iradio-mode", TRUE, NULL);
-						eDebug("[eServiceMP3] Enabled iradio-mode (audio only)");
+						m_download_buffer_path = "/tmp/gstreamer_XXXXXXXXXX";
 					}
 					else
 					{
-						eDebug("[eServiceMP3] iradio-mode property not supported by this GStreamer version");
+						m_download_buffer_path = "/hdd/gstreamer_XXXXXXXXXX";
 					}
 				}
 			}
+		}
+	}
+	else if ( m_sourceinfo.containertype == ctCDA )
+	{
+		int i_track = atoi(filename+(strlen(filename) - 6));
+		uri = g_strdup_printf ("cdda://%i", i_track);
+	}
+	else if ( m_sourceinfo.containertype == ctVCD )
+	{
+		int ret = -1;
+		int fd = open(filename,O_RDONLY);
+		if (fd >= 0)
+		{
+			char* tmp = new char[128*1024];
+			ret = read(fd, tmp, 128*1024);
+			close(fd);
+			delete [] tmp;
+		}
+		if ( ret == -1 ) // this is a "REAL" VCD
+			uri = g_strdup_printf ("vcd://");
+		else
+			uri = g_filename_to_uri(filename, NULL, NULL);
+	}
+	else
+		uri = g_filename_to_uri(filename, NULL, NULL);
 
-			/*
-			 * avoid video conversion, let the dvbmediasink handle that using native video flag
-			 * volume control is done by hardware, do not use soft volume flag
-			 */
-			guint flags = GST_PLAY_FLAG_AUDIO | GST_PLAY_FLAG_VIDEO | \
-					GST_PLAY_FLAG_TEXT | GST_PLAY_FLAG_NATIVE_VIDEO;
+	eDebug("[eServiceMP3] playbin uri=%s", uri ? uri : "NULL");
+	if (suburi != NULL)
+		eDebug("[eServiceMP3] playbin suburi=%s", suburi);
 
-			if (m_sourceinfo.is_streaming)
+	m_gst_playbin = gst_element_factory_make("playbin", "playbin");
+	if (m_gst_playbin)
+	{
+		/* Force iradio-mode for all HTTP streams (required for HDFRadio) */
+		if (m_sourceinfo.is_streaming)
+		{
+			/* Enable iradio-mode ONLY for audio streams - check if property exists */
+			if (!m_sourceinfo.is_video)
 			{
-				g_signal_connect(G_OBJECT (m_gst_playbin), "notify::source", G_CALLBACK (playbinNotifySource), this);
-
-				if (m_download_buffer_path != "")
+				if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "iradio-mode"))
 				{
-					/* use progressive download buffering */
-					flags |= GST_PLAY_FLAG_DOWNLOAD;
-					g_signal_connect(G_OBJECT(m_gst_playbin), "element-added", G_CALLBACK(handleElementAdded), this);
-					/* limit file size */
-					g_object_set(m_gst_playbin, "ring-buffer-max-size", (guint64)(16LL * 1024LL * 1024LL), NULL);
-				}
-
-				/*
-				 * regardless whether or not we configured a progressive download file, use a buffer as well
-				 * (progressive download might not work for all formats)
-				 */
-				flags |= GST_PLAY_FLAG_BUFFERING;
-
-				/* ===== SAFE STREAMING OPTIMIZATION ===== */
-
-				/* Ensure minimum buffer size without overriding user config */
-				if (m_buffer_size < 30 * 1024 * 1024)
-					m_buffer_size = 30 * 1024 * 1024;
-
-				g_object_set(G_OBJECT(m_gst_playbin),
-					"buffer-duration", 25LL * GST_SECOND,
-					"buffer-size", m_buffer_size,
-					NULL);
-
-				/* Improve adaptive streaming baseline */
-				m_connection_speed = 15000000; // 15 Mbps
-
-				g_object_set(G_OBJECT(m_gst_playbin),
-					"connection-speed", (guint64)m_connection_speed,
-					NULL);
-
-				/* Configure for HLS or DASH streaming */
-				if (m_sourceinfo.is_hls || m_sourceinfo.is_dash)
-				{
-					m_enable_adaptive_streaming = true;
-
-					/* Larger buffer for adaptive streams */
-					g_object_set(G_OBJECT(m_gst_playbin),
-						"buffer-duration", 30LL * GST_SECOND,
-						"buffer-size", 40 * 1024 * 1024,
-						NULL);
-
-					/* REQUIRED for stable HLS playback - check if property exists */
-					if (m_sourceinfo.is_hls)
-					{
-						if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "buffer-mode"))
-						{
-							g_object_set(G_OBJECT(m_gst_playbin),
-								"buffer-mode", 1,
-								NULL);
-							eDebug("[eServiceMP3] Enabled buffer-mode for HLS");
-						}
-						else
-						{
-							eDebug("[eServiceMP3] buffer-mode property not supported, using default buffering");
-						}
-					}
-				}
-			}
-
-			g_object_set (G_OBJECT (m_gst_playbin), "flags", flags, NULL);
-			g_object_set (G_OBJECT (m_gst_playbin), "uri", uri, NULL);
-
-			/* Configure subtitle sink with GStreamer 1.28 optimizations */
-			m_subtitle_sink = gst_element_factory_make("subsink", "subtitle_sink");
-			if (!m_subtitle_sink)
-				eDebug("[eServiceMP3] sorry, can't play: missing gst-plugin-subsink");
-			else
-			{
-				gst_object_ref(m_subtitle_sink);
-				m_subs_to_pull_handler_id = g_signal_connect (m_subtitle_sink, "new-buffer", G_CALLBACK (gstCBsubtitleAvail), this);
-				g_object_set (G_OBJECT (m_subtitle_sink), "caps", 
-					gst_caps_from_string("text/plain; text/x-plain; text/x-raw; text/x-pango-markup; subpicture/x-dvd; subpicture/x-dvb; subpicture/x-pgs"), NULL);
-
-				/* Improved subtitle synchronization for GStreamer 1.28 */
-				g_object_set (G_OBJECT (m_subtitle_sink), "async", TRUE, NULL);
-				g_object_set (G_OBJECT (m_subtitle_sink), "max-lateness", (gint64)(100 * GST_MSECOND), NULL);
-
-				g_object_set (G_OBJECT (m_gst_playbin), "text-sink", m_subtitle_sink, NULL);
-				g_object_set (G_OBJECT (m_gst_playbin), "current-text", m_currentSubtitleStream, NULL);
-			}
-
-			/* Set up bus handling */
-			GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE (m_gst_playbin));
-			gst_bus_set_sync_handler(bus, gstBusSyncHandler, this, NULL);
-			gst_object_unref(bus);
-
-			/* Configure subtitles */
-			if (suburi != NULL)
-				g_object_set (G_OBJECT (m_gst_playbin), "suburi", suburi, NULL);
-			else
-			{
-				if (m_external_subtitle_path.empty())
-				{
-					// safer C++ string handling instead of VLA
-					std::string srt_filename(filename, ext - filename);
-					srt_filename += ".srt";
-
-					if (::access(srt_filename.c_str(), R_OK) >= 0)
-					{
-						gchar *luri = g_filename_to_uri(srt_filename.c_str(), NULL, NULL);
-						eDebug("[eServiceMP3] subtitle uri: %s", luri);
-						g_object_set (m_gst_playbin, "suburi", luri, NULL);
-						g_free(luri);
-					}
+					g_object_set(G_OBJECT(m_gst_playbin), "iradio-mode", TRUE, NULL);
+					eDebug("[eServiceMP3] Enabled iradio-mode (audio only)");
 				}
 				else
 				{
-					if (::access(m_external_subtitle_path.c_str(), R_OK) >= 0)
+					eDebug("[eServiceMP3] iradio-mode property not supported by this GStreamer version");
+				}
+			}
+		}
+
+		/*
+		 * avoid video conversion, let the dvbmediasink handle that using native video flag
+		 * volume control is done by hardware, do not use soft volume flag
+		 */
+		guint flags = GST_PLAY_FLAG_AUDIO | GST_PLAY_FLAG_VIDEO | \
+				GST_PLAY_FLAG_TEXT | GST_PLAY_FLAG_NATIVE_VIDEO;
+
+		if (m_sourceinfo.is_streaming)
+		{
+			g_signal_connect(G_OBJECT (m_gst_playbin), "notify::source", G_CALLBACK (playbinNotifySource), this);
+
+			if (m_download_buffer_path != "")
+			{
+				/* use progressive download buffering */
+				flags |= GST_PLAY_FLAG_DOWNLOAD;
+				g_signal_connect(G_OBJECT(m_gst_playbin), "element-added", G_CALLBACK(handleElementAdded), this);
+				/* limit file size */
+				g_object_set(m_gst_playbin, "ring-buffer-max-size", (guint64)(16LL * 1024LL * 1024LL), NULL);
+			}
+
+			/*
+			 * regardless whether or not we configured a progressive download file, use a buffer as well
+			 * (progressive download might not work for all formats)
+			 */
+			flags |= GST_PLAY_FLAG_BUFFERING;
+
+			/* ===== SAFE STREAMING OPTIMIZATION ===== */
+
+			/* Ensure minimum buffer size without overriding user config */
+			if (m_buffer_size < 30 * 1024 * 1024)
+				m_buffer_size = 30 * 1024 * 1024;
+
+			g_object_set(G_OBJECT(m_gst_playbin),
+				"buffer-duration", 25LL * GST_SECOND,
+				"buffer-size", m_buffer_size,
+				NULL);
+
+			/* Improve adaptive streaming baseline */
+			m_connection_speed = 15000000; // 15 Mbps
+
+			g_object_set(G_OBJECT(m_gst_playbin),
+				"connection-speed", (guint64)m_connection_speed,
+				NULL);
+
+			/* Configure for HLS or DASH streaming */
+			if (m_sourceinfo.is_hls || m_sourceinfo.is_dash)
+			{
+				m_enable_adaptive_streaming = true;
+
+				/* Larger buffer for adaptive streams */
+				g_object_set(G_OBJECT(m_gst_playbin),
+					"buffer-duration", 30LL * GST_SECOND,
+					"buffer-size", 40 * 1024 * 1024,
+					NULL);
+
+				/* REQUIRED for stable HLS playback - check if property exists */
+				if (m_sourceinfo.is_hls)
+				{
+					if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "buffer-mode"))
 					{
-						gchar *luri = g_filename_to_uri(m_external_subtitle_path.c_str(), NULL, NULL);
-						eDebug("[eServiceMP3] m_external_subtitle uri: %s", luri);
-						g_object_set (m_gst_playbin, "suburi", luri, NULL);
-						g_free(luri);
+						g_object_set(G_OBJECT(m_gst_playbin),
+							"buffer-mode", 1,
+							NULL);
+						eDebug("[eServiceMP3] Enabled buffer-mode for HLS");
 					}
 					else
 					{
-						m_external_subtitle_extension = "";
+						eDebug("[eServiceMP3] buffer-mode property not supported, using default buffering");
 					}
 				}
 			}
+		}
 
-			/* GStreamer 1.28 specific: Enable subtitle offset if available */
-			if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "subtitle-offset"))
+		g_object_set (G_OBJECT (m_gst_playbin), "flags", flags, NULL);
+		g_object_set (G_OBJECT (m_gst_playbin), "uri", uri, NULL);
+
+		/* Configure subtitle sink with GStreamer 1.28 optimizations */
+		m_subtitle_sink = gst_element_factory_make("subsink", "subtitle_sink");
+		if (!m_subtitle_sink)
+			eDebug("[eServiceMP3] sorry, can't play: missing gst-plugin-subsink");
+		else
+		{
+			gst_object_ref(m_subtitle_sink);
+			m_subs_to_pull_handler_id = g_signal_connect (m_subtitle_sink, "new-buffer", G_CALLBACK (gstCBsubtitleAvail), this);
+			g_object_set (G_OBJECT (m_subtitle_sink), "caps", 
+				gst_caps_from_string("text/plain; text/x-plain; text/x-raw; text/x-pango-markup; subpicture/x-dvd; subpicture/x-dvb; subpicture/x-pgs"), NULL);
+
+			/* Improved subtitle synchronization for GStreamer 1.28 */
+			g_object_set (G_OBJECT (m_subtitle_sink), "async", TRUE, NULL);
+			g_object_set (G_OBJECT (m_subtitle_sink), "max-lateness", (gint64)(100 * GST_MSECOND), NULL);
+
+			g_object_set (G_OBJECT (m_gst_playbin), "text-sink", m_subtitle_sink, NULL);
+			g_object_set (G_OBJECT (m_gst_playbin), "current-text", m_currentSubtitleStream, NULL);
+		}
+
+		/* Set up bus handling */
+		GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE (m_gst_playbin));
+		gst_bus_set_sync_handler(bus, gstBusSyncHandler, this, NULL);
+		gst_object_unref(bus);
+
+		/* Configure subtitles */
+		if (suburi != NULL)
+			g_object_set (G_OBJECT (m_gst_playbin), "suburi", suburi, NULL);
+		else
+		{
+			if (m_external_subtitle_path.empty())
 			{
-				g_object_set(G_OBJECT(m_gst_playbin), "subtitle-offset", 0, NULL);
-				eDebug("[eServiceMP3] subtitle-offset property supported");
+				// safer C++ string handling instead of VLA
+				std::string srt_filename(filename, ext - filename);
+				srt_filename += ".srt";
+
+				if (::access(srt_filename.c_str(), R_OK) >= 0)
+				{
+					gchar *luri = g_filename_to_uri(srt_filename.c_str(), NULL, NULL);
+					eDebug("[eServiceMP3] subtitle uri: %s", luri);
+					g_object_set (m_gst_playbin, "suburi", luri, NULL);
+					g_free(luri);
+				}
 			}
 			else
 			{
-				eDebug("[eServiceMP3] subtitle-offset property not supported");
+				if (::access(m_external_subtitle_path.c_str(), R_OK) >= 0)
+				{
+					gchar *luri = g_filename_to_uri(m_external_subtitle_path.c_str(), NULL, NULL);
+					eDebug("[eServiceMP3] m_external_subtitle uri: %s", luri);
+					g_object_set (m_gst_playbin, "suburi", luri, NULL);
+					g_free(luri);
+				}
+				else
+				{
+					m_external_subtitle_extension = "";
+				}
 			}
-		} 
+		}
+
+		/* GStreamer 1.28 specific: Enable subtitle offset if available */
+		if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "subtitle-offset"))
+		{
+			g_object_set(G_OBJECT(m_gst_playbin), "subtitle-offset", 0, NULL);
+			eDebug("[eServiceMP3] subtitle-offset property supported");
+		}
 		else
 		{
-			m_event((iPlayableService*)this, evUser+12);
-			m_errorInfo.error_message = "failed to create GStreamer pipeline!\n";
-
-			eDebug("[eServiceMP3] sorry, can't play: %s",m_errorInfo.error_message.c_str());
+			eDebug("[eServiceMP3] subtitle-offset property not supported");
 		}
-	}
-	catch (const std::exception& e)
+	} 
+	else
 	{
-		eDebug("[eServiceMP3] Constructor exception: %s", e.what());
-		m_errorInfo.error_message = e.what();
 		m_event((iPlayableService*)this, evUser+12);
+		m_errorInfo.error_message = "failed to create GStreamer pipeline!\n";
+		eDebug("[eServiceMP3] sorry, can't play: %s",m_errorInfo.error_message.c_str());
 	}
 
 	if (uri)
@@ -923,17 +914,11 @@ eServiceMP3::~eServiceMP3()
 {
 	m_is_destructing = true;
 
-	// Disconnect all signals and stop timers first
+	// Stop timers first
 	if (m_subtitle_sync_timer)
-	{
 		m_subtitle_sync_timer->stop();
-		m_subtitle_sync_timer->timeout.disconnect();
-	}
 	if (m_dvb_subtitle_sync_timer)
-	{
 		m_dvb_subtitle_sync_timer->stop();
-		m_dvb_subtitle_sync_timer->timeout.disconnect();
-	}
 
 	// Clear queues with mutex protection
 	{
@@ -2550,7 +2535,10 @@ void eServiceMP3::handleMessage(GstMessage *msg)
 GstBusSyncReply eServiceMP3::gstBusSyncHandler(GstBus *bus, GstMessage *message, gpointer user_data)
 {
 	eServiceMP3 *_this = (eServiceMP3*)user_data;
-	if (_this) _this->handleMessage(message);
+	if (_this && !_this->m_is_destructing) 
+		_this->handleMessage(message);
+	else
+		gst_message_unref(message);
 	return GST_BUS_DROP;
 }
 
@@ -2813,6 +2801,9 @@ audiotype_t eServiceMP3::gstCheckAudioPad(GstStructure* structure)
 
 void eServiceMP3::gstPoll(ePtr<GstMessageContainer> const &msg)
 {
+	if (m_is_destructing)
+		return;
+
 	switch (msg->getType())
 	{
 		case 1:
@@ -2836,7 +2827,8 @@ void eServiceMP3::gstPoll(ePtr<GstMessageContainer> const &msg)
 		case 3:
 		{
 			GstPad *pad = msg->getPad();
-			gstTextpadHasCAPS_synced(pad);
+			if (pad)
+				gstTextpadHasCAPS_synced(pad);
 			break;
 		}
 	}
@@ -2933,7 +2925,7 @@ void eServiceMP3::pullSubtitle(GstBuffer *buffer)
 
 	GstMapInfo map;
 	bool mapped = false;
-	
+
 	if (m_currentSubtitleStream >= 0 && m_currentSubtitleStream < (int)m_subtitleStreams.size())
 	{
 		if (gst_buffer_map(buffer, &map, GST_MAP_READ))
@@ -2996,7 +2988,7 @@ void eServiceMP3::pullSubtitle(GstBuffer *buffer)
 			eLog(3, "[eServiceMP3] pullSubtitle gst_buffer_map failed");
 		}
 	}
-
+	
 	gst_buffer_unref(buffer);
 }
 
@@ -3049,14 +3041,7 @@ void eServiceMP3::pushDVBSubtitles()
 
 			if (m_subtitle_widget)
 			{
-				try {
-					m_subtitle_widget->setPage(dvb_page);
-				} catch (const std::exception& e) {
-					eDebug("[eServiceMP3] Exception in setPage: %s", e.what());
-					m_subtitle_widget = nullptr;
-					m_dvb_subtitle_pages.clear();
-					return;
-				}
+				m_subtitle_widget->setPage(dvb_page);
 			}
 			else
 			{
@@ -3136,11 +3121,7 @@ void eServiceMP3::pushSubtitles()
 			pango_page.m_show_pts = start_ms * 90;
 			pango_page.m_timeout = end_ms - decoder_ms;
 
-			try {
-				m_subtitle_widget->setPage(pango_page);
-			} catch (const std::exception& e) {
-				eDebug("[eServiceMP3] Exception in setPage: %s", e.what());
-			}
+			m_subtitle_widget->setPage(pango_page);
 		}
 	}
 
@@ -3222,13 +3203,13 @@ RESULT eServiceMP3::enableSubtitles(iSubtitleUser *user, struct SubtitleTrack &t
 RESULT eServiceMP3::disableSubtitles()
 {
 	eDebug("[eServiceMP3] disableSubtitles");
-	
+
 	// Stop timers first
 	if (m_subtitle_sync_timer)
 		m_subtitle_sync_timer->stop();
 	if (m_dvb_subtitle_sync_timer)
 		m_dvb_subtitle_sync_timer->stop();
-	
+
 	// Clear queues with mutex protection
 	{
 		std::lock_guard<std::mutex> lock(m_subtitle_mutex);
@@ -3238,22 +3219,22 @@ RESULT eServiceMP3::disableSubtitles()
 		std::lock_guard<std::mutex> lock(m_dvb_subtitle_mutex);
 		m_dvb_subtitle_pages.clear();
 	}
-	
+
 	m_currentSubtitleStream = -1;
 	m_cachedSubtitleStream = m_currentSubtitleStream;
 	setCacheEntry(false, -1);
 	m_prev_decoder_time = -1;
 	m_decoder_time_valid_state = 0;
-	
+
 	if (m_gst_playbin)
 		g_object_set (G_OBJECT (m_gst_playbin), "current-text", m_currentSubtitleStream, NULL);
-	
+
 	if (m_subtitle_widget)
 	{
 		m_subtitle_widget->destroy();
 		m_subtitle_widget = 0;
 	}
-	
+
 	return 0;
 }
 
