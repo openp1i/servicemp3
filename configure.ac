@@ -12,8 +12,6 @@ AC_LANG(C++)
 PKG_CHECK_MODULES(ENIGMA2, enigma2)
 PKG_CHECK_MODULES(GSTREAMER, gstreamer-1.0 gstreamer-pbutils-1.0)
 
-AX_CXX_COMPILE_STDCXX_17([ext],[mandatory])
-
 AC_DEFINE([DEBUG])
 
 AC_CONFIG_FILES([
