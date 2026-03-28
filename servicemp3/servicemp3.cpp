@@ -590,7 +590,7 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 
 	// Check extension length for safety
 	size_t ext_len = strlen(ext);
-	
+
 	if (ext_len > 0 && ext_len < 10)
 	{
 		if (strcasecmp(ext, ".mpeg") == 0 || strcasecmp(ext, ".mpe") == 0 || strcasecmp(ext, ".mpg") == 0 || strcasecmp(ext, ".vob") == 0 || strcasecmp(ext, ".bin") == 0)
@@ -886,7 +886,7 @@ eServiceMP3::eServiceMP3(eServiceReference ref):
 					}
 				}
 			}
-			
+
 			/* GStreamer 1.28 specific: Enable subtitle offset if available */
 			if (g_object_class_find_property(G_OBJECT_GET_CLASS(m_gst_playbin), "subtitle-offset"))
 			{
@@ -934,7 +934,7 @@ eServiceMP3::~eServiceMP3()
 		m_dvb_subtitle_sync_timer->stop();
 		m_dvb_subtitle_sync_timer->timeout.disconnect();
 	}
-	
+
 	// Clear queues with mutex protection
 	{
 		std::lock_guard<std::mutex> lock(m_subtitle_mutex);
@@ -944,7 +944,7 @@ eServiceMP3::~eServiceMP3()
 		std::lock_guard<std::mutex> lock(m_dvb_subtitle_mutex);
 		m_dvb_subtitle_pages.clear();
 	}
-	
+
 	// disconnect subtitle callback
 	if (m_gst_playbin && m_subtitle_sink)
 	{
