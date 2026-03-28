@@ -5,6 +5,8 @@
 #include <servicemp3.h>
 #include <lib/dvb/idvb.h>
 #include <gst/gst.h>
+#include <atomic>
+#include <mutex>
 
 class eServiceMP3Record:
 	public iRecordableService,
@@ -37,6 +39,10 @@ private:
 	std::string m_extra_headers;
 	eFixedMessagePump<ePtr<GstMessageContainer> > m_pump;
 
+	/* Thread safety */
+	std::atomic<bool> m_is_destructing;
+	std::mutex m_gst_mutex;
+
 	friend class eServiceFactoryMP3;
 	eServiceMP3Record(const eServiceReference &ref);
 	~eServiceMP3Record();
@@ -51,7 +57,7 @@ private:
 	static GstBusSyncReply gstBusSyncHandler(GstBus *bus, GstMessage *message, gpointer user_data);
 	static void handleUridecNotifySource(GObject *object, GParamSpec *unused, gpointer user_data);
 	static void handlePadAdded(GstElement *element, GstPad *pad, gpointer user_data);
-	static gboolean handleAutoPlugCont(GstElement *bin, GstPad *pad, GstCaps *caps, gpointer user_data);
+	static gboolean handleAutoPlugCont(GstBin *bin, GstPad *pad, GstCaps *caps, gpointer user_data);
 
 			/* events */
 	sigc::signal<void(iRecordableService*,int)> m_event;
