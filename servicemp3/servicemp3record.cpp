@@ -565,7 +565,7 @@ void eServiceMP3Record::handlePadAdded(GstElement *element, GstPad *pad, gpointe
 gboolean eServiceMP3Record::handleAutoPlugCont(GstBin *bin, GstPad *pad, GstCaps *caps, gpointer user_data)
 {
 	eDebug("[eMP3ServiceRecord] handleAutoPlugCont found caps %s", gst_caps_to_string(caps));
-	return true;
+	return TRUE;
 }
 
 RESULT eServiceMP3Record::frontendInfo(ePtr<iFrontendInformation> &ptr)
